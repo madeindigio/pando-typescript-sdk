@@ -1,0 +1,4 @@
+[test]
+preload = []
+# Bun-native tests live in tests/bun/
+# Run with: bun test tests/bun/

@@ -1,0 +1,19 @@
+{
+  "name": "@pando-ai/sdk",
+  "version": "0.1.0",
+  "exports": "./src/index.ts",
+  "tasks": {
+    "test": "deno test --allow-read --allow-env --allow-run tests/deno/",
+    "check": "deno check src/index.ts"
+  },
+  "nodeModulesDir": "auto",
+  "imports": {
+    "node:child_process": "node:child_process",
+    "node:readline": "node:readline",
+    "node:stream": "node:stream",
+    "node:path": "node:path",
+    "node:fs": "node:fs",
+    "node:os": "node:os",
+    "node:events": "node:events"
+  }
+}

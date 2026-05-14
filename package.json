@@ -14,12 +14,18 @@
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "engines": {
-    "node": ">=18"
+    "node": ">=18",
+    "bun": ">=1.0",
+    "deno": ">=1.40"
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm,cjs --dts --clean",
     "dev": "tsup src/index.ts --format esm,cjs --dts --watch",
     "test": "node --experimental-vm-modules node_modules/.bin/jest",
+    "test:bun": "bun test tests/bun/",
+    "test:bun:watch": "bun test --watch tests/bun/",
+    "test:deno": "deno task test",
+    "check:deno": "deno check src/index.ts",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit"
   },
@@ -63,7 +69,14 @@
       ]
     },
     "testMatch": [
-      "**/tests/**/*.test.ts"
+      "**/tests/**/*.test.ts",
+      "!**/tests/bun/**",
+      "!**/tests/deno/**"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/tests/bun/",
+      "/tests/deno/"
     ]
   }
 }
