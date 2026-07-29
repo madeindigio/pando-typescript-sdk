@@ -177,6 +177,72 @@ const personas = await client.personas.list();
 await client.personas.setActive('software-engineer');
 ```
 
+### Mode 4: AG-UI (`@pando-ai/sdk/agui`)
+
+[AG-UI](https://docs.ag-ui.com) is the protocol CopilotKit and other Generative-UI
+frontends speak to agent backends. Pando serves it from `pando agui-serve --port 8090`
+(or `pando serve --agui-port 8090`); it is **off by default** and requires a bearer
+token and an origin allow-list, because it exposes a code-executing agent to a browser.
+
+This is a **separate subpath export**: importing the main entry point pulls in none of
+it, and `@ag-ui/client` / `@copilotkit/runtime` are optional peers of the subpath only.
+
+```typescript
+import { PandoAguiClient } from '@pando-ai/sdk/agui';
+
+const client = new PandoAguiClient({
+  baseUrl: 'http://localhost:8090',
+  token: process.env.PANDO_TOKEN,
+  agent: 'coder',
+});
+
+// Discovery: which agents exist, their model, which capabilities are on
+const info = await client.info();
+
+for await (const event of client.run({ prompt: 'Summarise the repo' })) {
+  switch (event.type) {
+    case 'TEXT_MESSAGE_CONTENT':
+      process.stdout.write(event.delta);
+      break;
+    case 'STATE_SNAPSHOT':
+      console.log(event.snapshot.todos, event.snapshot.subAgents);
+      break;
+    case 'RUN_FINISHED':
+      if (event.outcome === 'interrupt') {
+        // The agent called one of your `tools`: run it, then call `run` again on
+        // the same thread with a `tool` message carrying the result.
+      }
+      break;
+  }
+}
+```
+
+With CopilotKit, in a Next.js route:
+
+```typescript
+// app/api/copilotkit/route.ts
+import { registerPandoCopilotKit } from '@pando-ai/sdk/agui';
+
+export const { POST, GET, OPTIONS } = await registerPandoCopilotKit({
+  baseUrl: process.env.PANDO_URL!,
+  token: process.env.PANDO_TOKEN,
+});
+```
+
+`registerPandoCopilotKit` reads `/info` and registers every agent Pando advertises. Under
+a bundler, pass `HttpAgent` and `runtimeModule` explicitly so the peers are resolved
+statically. A full example — chat, shared-state dashboard, a frontend tool and in-page
+approvals — is in [`examples/copilotkit/`](../../examples/copilotkit/).
+
+| Export | Purpose |
+|---|---|
+| `PandoAguiClient` | Dependency-free run/discovery client (`run`, `runText`, `info`) |
+| `createPandoAgent` | One `HttpAgent` for one Pando agent, token attached |
+| `discoverPandoAgents` | Every advertised agent, keyed by name, for `CopilotRuntime` |
+| `registerPandoCopilotKit` | The whole Next.js route in one call |
+| `PandoState` | Type of the shared-state document (`useCoAgent<PandoState>()`) |
+| `parseSSE` | The event-stream parser, if you issue the request yourself |
+
 ## TypeScript types reference
 
 ### `AgentEvent`

@@ -5,9 +5,14 @@
   "type": "module",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "require": "./dist/index.cjs",
-      "types": "./dist/index.d.ts"
+      "require": "./dist/index.cjs"
+    },
+    "./agui": {
+      "types": "./dist/agui/index.d.ts",
+      "import": "./dist/agui/index.js",
+      "require": "./dist/agui/index.cjs"
     }
   },
   "main": "./dist/index.cjs",
@@ -19,8 +24,8 @@
     "deno": ">=1.40"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --dts --clean",
-    "dev": "tsup src/index.ts --format esm,cjs --dts --watch",
+    "build": "tsup src/index.ts src/agui/index.ts --format esm,cjs --dts --clean",
+    "dev": "tsup src/index.ts src/agui/index.ts --format esm,cjs --dts --watch",
     "test": "node --experimental-vm-modules node_modules/.bin/jest",
     "test:bun": "bun test tests/bun/",
     "test:bun:watch": "bun test --watch tests/bun/",
@@ -28,6 +33,18 @@
     "check:deno": "deno check src/index.ts",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@ag-ui/client": ">=0.0.30",
+    "@copilotkit/runtime": ">=1.10.0"
+  },
+  "peerDependenciesMeta": {
+    "@ag-ui/client": {
+      "optional": true
+    },
+    "@copilotkit/runtime": {
+      "optional": true
+    }
   },
   "keywords": [
     "pando",
