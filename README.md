@@ -243,6 +243,91 @@ approvals — is in [`examples/copilotkit/`](../../examples/copilotkit/).
 | `PandoState` | Type of the shared-state document (`useCoAgent<PandoState>()`) |
 | `parseSSE` | The event-stream parser, if you issue the request yourself |
 
+#### Reverse-proxy contract
+
+Putting a product's own backend between the browser and `pando agui-serve` — instead of
+pointing the browser at Pando directly — is the recommended shape for anything beyond a
+local demo. The rules below are pinned to the Go source enforcing them
+(`internal/agui/doc.go`'s "Reverse-proxy contract" section carries the same list with
+exact line numbers, kept in sync by hand):
+
+- **Origin.** `authorize` skips the `AllowedOrigins` check entirely when the `Origin`
+  header is absent (`internal/agui/server.go`). A server-to-server proxy that does not
+  forward the browser's own `Origin` upstream needs no `AllowedOrigins` entry at all —
+  that is the recommended shape, and `agui-serve`'s "no allowed origins" startup warning
+  is safe to ignore in it. If a proxy does forward the browser's `Origin`, the exact
+  string must be listed: matching is case-insensitive exact-match or the literal `"*"`,
+  never a wildcard subdomain or port pattern.
+- **Token.** The adapter accepts `Authorization: Bearer <token>` or a `?token=` query
+  parameter. The query fallback exists only because the browser's native `EventSource`
+  API cannot set headers — never use it from a browser-originated request, since a query
+  string lands in access logs, `Referer` and browser history. A proxy should strip any
+  inbound `?token=` and set the real header itself, so the Pando token never reaches the
+  browser: the browser authenticates to the *proxy*, under whatever scheme the product
+  already uses.
+- **Streaming.** The adapter sets `X-Accel-Buffering: no`, flushes after every event, and
+  sends a `: keep-alive` SSE comment every 15s. A Go `httputil.ReverseProxy` needs
+  `FlushInterval: -1` and no response buffering; the write/idle timeout must be `0` or
+  comfortably above 15s, matching the adapter's own listener (which sets `WriteTimeout: 0`
+  on purpose — a run's response is exactly as long-lived as the agent takes).
+- **`/info` URL rewriting.** Discovery URLs are built from the request's `Host`, honouring
+  `X-Forwarded-Proto` for the scheme only, and deliberately ignoring `X-Forwarded-Host`.
+  Behind a path-rewriting proxy those URLs come back wrong to use as-is — rewrite `Host`
+  upstream, or ignore `/info`'s URLs and construct the run endpoint yourself.
+- **TLS.** `agui-serve` self-signs into the data directory unless `--no-tls` is passed. On
+  loopback behind a proxy that already terminates TLS for the browser, `--no-tls` is the
+  pragmatic choice for the Pando-facing hop; elsewhere, pin the certificate instead.
+- **Body limit.** A `RunAgentInput` body over 8 MiB is truncated and fails to decode — a
+  proxy must not impose a tighter limit of its own without raising it to match.
+
+A copy-pasteable Go proxy implementing all of the above — `newReverseProxy` — lives at
+[`examples/vite-react/proxy/main.go`](../../examples/vite-react/proxy/main.go); it is the
+only backend hop [`examples/vite-react/`](../../examples/vite-react/) needs, and
+`examples/vite-react/proxy/example_test.go` compiles it as a Go example test on every run
+so this snippet cannot silently rot:
+
+```go
+// newReverseProxy builds the reverse proxy that fronts a `pando agui-serve`
+// instance at target, injecting pandoToken as the bearer credential on every
+// forwarded request.
+func newReverseProxy(target *url.URL, pandoToken string) *httputil.ReverseProxy {
+	proxy := httputil.NewSingleHostReverseProxy(target)
+
+	// Flush after every write instead of batching: buffering here would
+	// hold back SSE deltas exactly like an nginx/Envoy hop without an
+	// equivalent setting.
+	proxy.FlushInterval = -1
+
+	director := proxy.Director
+	proxy.Director = func(req *http.Request) {
+		director(req)
+
+		// Never forward the browser's own Origin upstream: an absent
+		// Origin makes authorize() skip the allow-list entirely, which
+		// is the recommended shape for a server-to-server proxy.
+		req.Header.Del("Origin")
+
+		// Strip any inbound ?token= (it would otherwise sit in access
+		// logs, Referer headers and browser history) and set the real
+		// bearer token here instead, so it never has to reach the
+		// browser at all.
+		q := req.URL.Query()
+		q.Del("token")
+		req.URL.RawQuery = q.Encode()
+		req.Header.Set("Authorization", "Bearer "+pandoToken)
+	}
+
+	return proxy
+}
+```
+
+The full file also wires up a `net/http.Server` with `WriteTimeout: 0` and the proxy's own
+(separate) CORS policy for the browser-facing hop — see the linked source. A plain Vite +
+React 18 SPA on `@pando-ai/sdk/agui/client` — streaming text, reasoning, tool cards, a
+permission prompt and the state document, with no CopilotKit and no Next.js — is in
+[`examples/vite-react/`](../../examples/vite-react/); its README gives the exact commands
+to run it end to end against this proxy.
+
 #### Recording AG-UI fixtures
 
 The agui test suite (`tests/agui*.test.ts`) mostly replays committed SSE fixtures —

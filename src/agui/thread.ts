@@ -10,10 +10,16 @@
  * detects the interrupt/resume handoff so a chat panel does not have to
  * re-derive any of it from the Go source.
  *
- * It is a pure client-side projection: there is no thread-list, history-fetch
- * or reattach endpoint on the server (`internal/agui/server.go:26-33` mounts
- * only `/info`, `OPTIONS` and the run POST), so a page that reloads loses the
- * transcript unless it persists `PandoThread` state itself.
+ * It is a pure client-side reduction: `PandoThread` itself never calls the
+ * server's thread API — `GET {path}/threads`, `GET
+ * {path}/threads/{id}/messages`, `GET {path}/threads/{id}/stream` or
+ * `DELETE {path}/threads/{id}` (`internal/agui/threads.go`, mounted by
+ * `server.go`'s `Register` alongside `/info` and the run POST since
+ * PANDO-US-0015/0018 — those routes do exist server-side now). It only
+ * reduces the events `PandoAguiClient.run` yields. A page that reloads
+ * therefore still loses this object's in-memory transcript unless the
+ * caller either persists `PandoThread` state itself or rebuilds one from
+ * the thread API's own responses.
  */
 
 import { PandoError } from "../exceptions.js";
