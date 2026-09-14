@@ -9,6 +9,14 @@
  * The subpath is separate so the main entry point stays untouched: nothing here
  * is loaded — or bundled — unless you import it.
  *
+ * This entry re-exports both halves of the surface (the plain client and the
+ * CopilotKit glue) for existing consumers. For a browser build where dead
+ * CopilotKit weight and its dynamic peer-loading `import()` matter (e.g. a
+ * Vite app), import the narrower subpaths instead:
+ *  - `@pando-ai/sdk/agui/client` — `PandoAguiClient` + protocol types only.
+ *  - `@pando-ai/sdk/agui/copilotkit` — `createPandoAgent`,
+ *    `discoverPandoAgents`, `registerPandoCopilotKit`.
+ *
  * @example Stream a run without CopilotKit
  * ```typescript
  * import { PandoAguiClient } from '@pando-ai/sdk/agui';
