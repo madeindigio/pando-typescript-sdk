@@ -17,9 +17,45 @@
  * ```
  */
 
-import * as https from "node:https";
+import type * as NodeHttps from "node:https";
 import type { HttpSession, HttpStreamChunk, ModelInfo } from "./types.js";
 import { PandoConnectionError } from "./exceptions.js";
+
+// ---------------------------------------------------------------------------
+// Node-only TLS agent (lazy, browser-safe)
+// ---------------------------------------------------------------------------
+
+/**
+ * `true` when running under Node.js (as opposed to a browser or another
+ * Web-standard runtime that only exposes `fetch`).
+ */
+function isNodeRuntime(): boolean {
+  return (
+    typeof process !== "undefined" &&
+    process.versions != null &&
+    typeof process.versions.node === "string"
+  );
+}
+
+/**
+ * Builds a `https.Agent` that skips TLS certificate validation, for local
+ * development against a self-signed cert.
+ *
+ * `node:https` is imported here — lazily, on demand — rather than at module
+ * scope so this file has no static Node import: a bundler resolving the
+ * package root for the browser (Vite, webpack, esbuild) never has to resolve
+ * `node:https`. The specifier is also read from a variable instead of a
+ * string literal, which stops bundlers from statically analysing and trying
+ * to pre-resolve this dynamic import at build time (the same technique
+ * `agui/copilotkit.ts` uses for its optional peers). It is only ever called
+ * when {@link isNodeRuntime} is `true`, so the branch never actually runs in
+ * a browser.
+ */
+async function insecureHttpsAgent(): Promise<unknown> {
+  const specifier = "node:https";
+  const https = (await import(specifier)) as typeof NodeHttps;
+  return new https.Agent({ rejectUnauthorized: false });
+}
 
 // ---------------------------------------------------------------------------
 // Client options
@@ -55,7 +91,7 @@ export interface PandoHttpClientOptions {
 /**
  * Build a fetch-compatible `RequestInit` with optional TLS agent and auth.
  */
-function buildFetchInit(
+async function buildFetchInit(
   method: string,
   body: unknown | undefined,
   options: {
@@ -63,7 +99,7 @@ function buildFetchInit(
     timeout: number;
     apiToken?: string | undefined;
   }
-): RequestInit {
+): Promise<RequestInit> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json",
@@ -84,14 +120,14 @@ function buildFetchInit(
   }
 
   // For HTTPS URLs with rejectUnauthorized: false, inject a custom agent.
-  if (!options.rejectUnauthorized) {
+  // Only meaningful (and only attempted) under Node.js: a browser's fetch has
+  // no equivalent option and ignores an "agent" init field.
+  if (!options.rejectUnauthorized && isNodeRuntime()) {
     // Node.js fetch (undici) respects the dispatcher option or agent.
     // We attach a custom dispatcher-compatible value for self-signed certs.
     // Since Node 18+ uses undici under the hood we use the https.Agent approach
     // via a custom fetch call if needed.
-    (init as Record<string, unknown>)["agent"] = new https.Agent({
-      rejectUnauthorized: false,
-    });
+    (init as Record<string, unknown>)["agent"] = await insecureHttpsAgent();
   }
 
   return init;
@@ -105,7 +141,7 @@ async function fetchJSON<T>(
 ): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(url, buildFetchInit(method, body, opts));
+    response = await fetch(url, await buildFetchInit(method, body, opts));
   } catch (err) {
     throw new PandoConnectionError(
       `HTTP request to ${url} failed: ${(err as Error).message}`

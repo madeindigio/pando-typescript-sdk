@@ -1,4 +1,7 @@
 [test]
-preload = []
 # Bun-native tests live in tests/bun/
 # Run with: bun test tests/bun/
+#
+# No `preload` entries are needed (an empty array here — `preload = []` —
+# fails to parse under Bun 1.3.14's bunfig TOML parser: "Expected preload to
+# be an array"). Omitting the key is equivalent to an empty list.

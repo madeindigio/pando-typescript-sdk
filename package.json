@@ -3,9 +3,16 @@
   "version": "0.1.0",
   "description": "TypeScript/Node.js SDK for the Pando AI coding assistant",
   "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
+      "browser": "./dist/index.js",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
@@ -13,6 +20,17 @@
       "types": "./dist/agui/index.d.ts",
       "import": "./dist/agui/index.js",
       "require": "./dist/agui/index.cjs"
+    },
+    "./agui/client": {
+      "types": "./dist/agui/client-entry.d.ts",
+      "browser": "./dist/agui/client-entry.js",
+      "import": "./dist/agui/client-entry.js",
+      "require": "./dist/agui/client-entry.cjs"
+    },
+    "./agui/copilotkit": {
+      "types": "./dist/agui/copilotkit.d.ts",
+      "import": "./dist/agui/copilotkit.js",
+      "require": "./dist/agui/copilotkit.cjs"
     }
   },
   "main": "./dist/index.cjs",
@@ -24,14 +42,18 @@
     "deno": ">=1.40"
   },
   "scripts": {
-    "build": "tsup src/index.ts src/agui/index.ts --format esm,cjs --dts --clean",
-    "dev": "tsup src/index.ts src/agui/index.ts --format esm,cjs --dts --watch",
+    "build": "tsup src/index.ts src/agui/index.ts src/agui/client-entry.ts src/agui/copilotkit.ts --format esm,cjs --dts --clean",
+    "dev": "tsup src/index.ts src/agui/index.ts src/agui/client-entry.ts src/agui/copilotkit.ts --format esm,cjs --dts --watch",
     "test": "node --experimental-vm-modules node_modules/.bin/jest",
     "test:bun": "bun test tests/bun/",
     "test:bun:watch": "bun test --watch tests/bun/",
     "test:deno": "deno task test",
     "check:deno": "deno check src/index.ts",
-    "typecheck": "tsc --noEmit",
+    "test:browser-build": "node tests/browser-build/run.mjs",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.agui-browser.json",
+    "typecheck:agui-browser": "tsc --noEmit -p tsconfig.agui-browser.json",
+    "check:agui-drift": "node scripts/check-agui-drift.mjs",
+    "record:agui-fixtures": "node scripts/record-agui-fixtures.mjs",
     "lint": "tsc --noEmit"
   },
   "peerDependencies": {
@@ -80,7 +102,8 @@
           "useESM": true,
           "tsconfig": {
             "module": "ESNext",
-            "moduleResolution": "bundler"
+            "moduleResolution": "bundler",
+            "rootDir": "."
           }
         }
       ]

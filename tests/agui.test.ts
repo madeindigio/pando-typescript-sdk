@@ -3,6 +3,7 @@ import { describe, expect, it, jest } from "@jest/globals";
 import {
   PandoAguiClient,
   PandoAguiError,
+  PandoAguiRunError,
   parseSSE,
 } from "../src/agui/index.js";
 import {
@@ -106,13 +107,27 @@ describe("PandoAguiClient", () => {
     await expect(client.runText("hi")).resolves.toBe("ok done");
   });
 
-  it("surfaces RUN_ERROR from runText", async () => {
+  it("surfaces RUN_ERROR from runText as a PandoAguiRunError, distinguishable from an HTTP failure", async () => {
     const fetchImpl = jest.fn(async () =>
-      sseResponse([frame({ type: "RUN_ERROR", message: "model refused" })]),
+      sseResponse([frame({ type: "RUN_ERROR", message: "model refused", code: "session_busy" })]),
     ) as unknown as typeof fetch;
 
     const client = new PandoAguiClient({ baseUrl: "http://x", fetch: fetchImpl });
-    await expect(client.runText("hi")).rejects.toThrow("model refused");
+    const run = client.runText("hi");
+    await expect(run).rejects.toThrow("model refused");
+    await expect(run).rejects.toBeInstanceOf(PandoAguiRunError);
+    // Not a PandoAguiError: a RUN_ERROR carries no real HTTP status (it rides
+    // an otherwise-200 SSE stream), so it must not be reported through the
+    // same class/shape as an HTTP-level failure — see PANDO-US-0010.
+    await expect(run).rejects.not.toBeInstanceOf(PandoAguiError);
+
+    try {
+      await client.runText("hi again");
+      throw new Error("expected runText to reject");
+    } catch (error) {
+      expect(error).toBeInstanceOf(PandoAguiRunError);
+      expect((error as PandoAguiRunError).code).toBe("session_busy");
+    }
   });
 
   it("maps a rejected request onto PandoAguiError with its status", async () => {
@@ -127,6 +142,42 @@ describe("PandoAguiClient", () => {
     const run = collect(client.run({ prompt: "hi" }));
     await expect(run).rejects.toBeInstanceOf(PandoAguiError);
     await expect(run).rejects.toThrow("invalid or missing token");
+  });
+
+  it("forwards parentRunId and forwardedProps in the posted body (PANDO-US-0009)", async () => {
+    let body: Record<string, unknown> = {};
+    const fetchImpl = jest.fn(async (_url: unknown, init?: RequestInit) => {
+      body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return sseResponse([frame({ type: "RUN_FINISHED", threadId: "t", runId: "r" })]);
+    }) as unknown as typeof fetch;
+
+    const client = new PandoAguiClient({ baseUrl: "http://x", fetch: fetchImpl });
+    await collect(
+      client.run({
+        prompt: "hi",
+        threadId: "t",
+        runId: "r",
+        parentRunId: "parent-1",
+        forwardedProps: { locale: "en-US" },
+      }),
+    );
+
+    expect(body["parentRunId"]).toBe("parent-1");
+    expect(body["forwardedProps"]).toEqual({ locale: "en-US" });
+  });
+
+  it("omits parentRunId and forwardedProps from the body when not given", async () => {
+    let body: Record<string, unknown> = {};
+    const fetchImpl = jest.fn(async (_url: unknown, init?: RequestInit) => {
+      body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return sseResponse([frame({ type: "RUN_FINISHED", threadId: "t", runId: "r" })]);
+    }) as unknown as typeof fetch;
+
+    const client = new PandoAguiClient({ baseUrl: "http://x", fetch: fetchImpl });
+    await collect(client.run({ prompt: "hi", threadId: "t", runId: "r" }));
+
+    expect("parentRunId" in body).toBe(false);
+    expect("forwardedProps" in body).toBe(false);
   });
 
   it("omits the Authorization header when no token is configured", async () => {

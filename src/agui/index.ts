@@ -9,6 +9,14 @@
  * The subpath is separate so the main entry point stays untouched: nothing here
  * is loaded — or bundled — unless you import it.
  *
+ * This entry re-exports both halves of the surface (the plain client and the
+ * CopilotKit glue) for existing consumers. For a browser build where dead
+ * CopilotKit weight and its dynamic peer-loading `import()` matter (e.g. a
+ * Vite app), import the narrower subpaths instead:
+ *  - `@pando-ai/sdk/agui/client` — `PandoAguiClient` + protocol types only.
+ *  - `@pando-ai/sdk/agui/copilotkit` — `createPandoAgent`,
+ *    `discoverPandoAgents`, `registerPandoCopilotKit`.
+ *
  * @example Stream a run without CopilotKit
  * ```typescript
  * import { PandoAguiClient } from '@pando-ai/sdk/agui';
@@ -39,6 +47,7 @@
 export {
   PandoAguiClient,
   PandoAguiError,
+  PandoAguiRunError,
   parseSSE,
   randomId,
   DEFAULT_AGUI_PATH,
@@ -46,10 +55,39 @@ export {
 } from "./client.js";
 export type {
   PandoAguiClientOptions,
+  AguiRunOptions,
+  /** @deprecated Use {@link AguiRunOptions}. */
   RunOptions,
   PandoPermissionRequest,
   PandoPermissionAnswer,
 } from "./client.js";
+
+export { PandoThread, applyJsonPatch } from "./thread.js";
+export type {
+  PandoThreadOptions,
+  PandoThreadRunOptions,
+  PandoCustomEvent,
+  PendingToolCall,
+} from "./thread.js";
+
+export {
+  QUESTION_TOOL_NAME,
+  isPermissionRequest,
+  isQuestionRequest,
+  approve,
+  deny,
+  answerQuestion,
+  cancelQuestion,
+} from "./hitl.js";
+export type {
+  PandoQuestion,
+  PandoQuestionOption,
+  PandoQuestionRequest,
+  PandoQuestionAnswer,
+  PandoQuestionAnswerEntry,
+  PandoPermissionPendingCall,
+  PandoQuestionPendingCall,
+} from "./hitl.js";
 
 export {
   createPandoAgent,
