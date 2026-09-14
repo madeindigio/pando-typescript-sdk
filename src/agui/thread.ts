@@ -18,7 +18,7 @@
 
 import { PandoError } from "../exceptions.js";
 import { PandoAguiClient, randomId } from "./client.js";
-import type { RunOptions } from "./client.js";
+import type { AguiRunOptions } from "./client.js";
 import type {
   AguiContext,
   AguiEvent,
@@ -189,7 +189,7 @@ export class PandoThread {
   private async *runAndReduce(
     options: PandoThreadRunOptions,
   ): AsyncGenerator<AguiEvent, void, undefined> {
-    const runOptions: RunOptions = {
+    const runOptions: AguiRunOptions = {
       threadId: this.threadId,
       runId: randomId("run"),
       messages: this.messages,
@@ -217,7 +217,11 @@ export class PandoThread {
 
       case "TEXT_MESSAGE_CONTENT": {
         const message = this.assistantMessage(event.messageId);
-        message.content = (message.content ?? "") + event.delta;
+        // Streamed assistant text is always a plain string; `content` is a
+        // union only because a *user* message may carry multimodal parts
+        // (`AguiMessageContentPart[]`), which never reaches this branch.
+        const prior = typeof message.content === "string" ? message.content : "";
+        message.content = prior + event.delta;
         break;
       }
 

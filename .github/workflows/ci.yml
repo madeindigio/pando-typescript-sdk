@@ -1,0 +1,58 @@
+name: CI
+
+# This workflow lives in — and runs against — the `pando-typescript-sdk`
+# repository (`sdk/typescript`'s own remote, see the SDK's README). Its
+# checkout root is therefore this package's root: no `working-directory`
+# override is needed, unlike a workflow authored from inside the `pando`
+# monorepo.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: build, typecheck, test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run test:browser-build
+
+  agui-drift:
+    name: AG-UI protocol drift check (PANDO-US-0009)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout SDK
+        uses: actions/checkout@v4
+      - name: Checkout internal/agui from the pando monorepo
+        uses: actions/checkout@v4
+        with:
+          repository: digiogithub/pando
+          # A PAT with read access to digiogithub/pando is required here when
+          # that repository is private — the default GITHUB_TOKEN this
+          # workflow runs with only has access to the repo it belongs to
+          # (this SDK's own repository), not a sibling one. Add a
+          # PANDO_MONOREPO_TOKEN repository secret and uncomment the line
+          # below if the checkout starts failing with "Repository not found".
+          # token: ${{ secrets.PANDO_MONOREPO_TOKEN }}
+          sparse-checkout: |
+            internal/agui
+          path: pando-go-source
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Run the drift check against the live Go source
+        env:
+          PANDO_AGUI_GO_DIR: ${{ github.workspace }}/pando-go-source/internal/agui
+        run: npm run check:agui-drift

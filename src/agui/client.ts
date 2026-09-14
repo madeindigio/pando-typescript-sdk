@@ -73,8 +73,14 @@ export interface PandoAguiClientOptions {
   fetch?: typeof fetch;
 }
 
-/** Options of a single {@link PandoAguiClient.run} call. */
-export interface RunOptions {
+/**
+ * Options of a single {@link PandoAguiClient.run} call.
+ *
+ * Named `AguiRunOptions` (not `RunOptions`) because `@pando-ai/sdk`'s main
+ * entry point (`src/client.ts`, subprocess mode) exports its own, differently
+ * shaped `RunOptions`; the two used to collide under the same name.
+ */
+export interface AguiRunOptions {
   /** The user's message. Ignored when `messages` is given. */
   prompt?: string;
   /**
@@ -92,7 +98,28 @@ export interface RunOptions {
   /** Agent for this run, overriding the client's default. */
   agent?: string;
   signal?: AbortSignal;
+  /**
+   * Parent run id, when this run is a sub-run of another
+   * (`RunAgentInput.parentRunId`, `internal/agui/input.go:39`).
+   */
+  parentRunId?: string;
+  /**
+   * Arbitrary properties forwarded verbatim as `RunAgentInput.forwardedProps`
+   * (`internal/agui/input.go:46`). The adapter currently decodes and drops
+   * this field server-side — it has no effect on the run yet, tracked
+   * separately on the Pando side — but the client still sends it so a future
+   * adapter version, or middleware in front of it, can read it.
+   */
+  forwardedProps?: unknown;
 }
+
+/**
+ * @deprecated Renamed to {@link AguiRunOptions} to avoid colliding with the
+ * `RunOptions` exported by `@pando-ai/sdk`'s main entry point (subprocess
+ * mode). This alias is kept for one minor version and will be removed after
+ * that — update imports to `AguiRunOptions`.
+ */
+export type RunOptions = AguiRunOptions;
 
 /** Raised when the adapter answers with a non-2xx status. */
 export class PandoAguiError extends PandoError {
@@ -102,6 +129,26 @@ export class PandoAguiError extends PandoError {
     super(message);
     this.name = "PandoAguiError";
     this.status = status;
+  }
+}
+
+/**
+ * Raised when a run itself reports a protocol-level failure — a `RUN_ERROR`
+ * event arriving over an otherwise-200 SSE stream — as opposed to an
+ * HTTP-level failure ({@link PandoAguiError}). The two used to be conflated:
+ * `runText` threw `PandoAguiError` with a fabricated `status: 0` for a
+ * `RUN_ERROR`, which made "no real HTTP status" indistinguishable from "the
+ * server genuinely answered 0" without inspecting a magic number. `code`
+ * mirrors `RunErrorEvent.code` (`internal/agui/server.go`'s `runErrorCode`:
+ * `"session_busy"`, `"cancelled"`, or empty for an unclassified failure).
+ */
+export class PandoAguiRunError extends PandoError {
+  readonly code: string | undefined;
+
+  constructor(message: string, code?: string) {
+    super(message);
+    this.name = "PandoAguiRunError";
+    this.code = code;
   }
 }
 
@@ -164,7 +211,7 @@ export class PandoAguiClient {
    * on the same thread with the transcript plus a `tool` message carrying the
    * result, which resumes the suspended run.
    */
-  async *run(options: RunOptions): AsyncGenerator<AguiEvent, void, undefined> {
+  async *run(options: AguiRunOptions): AsyncGenerator<AguiEvent, void, undefined> {
     const input = this.buildInput(options);
     const url = this.agentUrl(options.agent ?? this.agent);
 
@@ -178,6 +225,21 @@ export class PandoAguiClient {
       ...(options.signal ? { signal: options.signal } : {}),
     });
 
+    // A proxy in front of the adapter (or a misconfigured route) can answer
+    // 200 with an HTML or JSON error page instead of the SSE stream the
+    // adapter itself always sends. Without this check `parseSSE` would just
+    // find no `data:` frames in that body and the run would complete
+    // successfully with zero events — indistinguishable from "the agent
+    // produced nothing" to the caller. Checked before the `response.body`
+    // guard below so the more specific error wins.
+    const contentType = response.headers.get("content-type") ?? "";
+    if (!contentType.includes("text/event-stream")) {
+      throw new PandoConnectionError(
+        `AG-UI response was not an SSE stream (Content-Type: "${contentType || "(none)"}"); ` +
+          "the server may be behind a proxy that intercepted the request",
+      );
+    }
+
     if (!response.body) {
       throw new PandoConnectionError("AG-UI response carried no body");
     }
@@ -189,20 +251,20 @@ export class PandoAguiClient {
    * Tool calls, state and reasoning are dropped: use {@link run} when they
    * matter.
    */
-  async runText(prompt: string, options: Omit<RunOptions, "prompt"> = {}): Promise<string> {
+  async runText(prompt: string, options: Omit<AguiRunOptions, "prompt"> = {}): Promise<string> {
     let text = "";
     for await (const event of this.run({ ...options, prompt })) {
       if (event.type === "TEXT_MESSAGE_CONTENT") {
         text += event.delta;
       } else if (event.type === "RUN_ERROR") {
-        throw new PandoAguiError(0, event.message);
+        throw new PandoAguiRunError(event.message, event.code);
       }
     }
     return text;
   }
 
-  /** Builds the request body from the friendlier {@link RunOptions}. */
-  private buildInput(options: RunOptions): RunAgentInput {
+  /** Builds the request body from the friendlier {@link AguiRunOptions}. */
+  private buildInput(options: AguiRunOptions): RunAgentInput {
     const messages =
       options.messages ??
       (options.prompt === undefined
@@ -217,6 +279,8 @@ export class PandoAguiClient {
     if (options.tools?.length) input.tools = options.tools;
     if (options.context?.length) input.context = options.context;
     if (options.state !== undefined) input.state = options.state;
+    if (options.parentRunId !== undefined) input.parentRunId = options.parentRunId;
+    if (options.forwardedProps !== undefined) input.forwardedProps = options.forwardedProps;
     return input;
   }
 

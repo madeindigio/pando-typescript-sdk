@@ -1,0 +1,12 @@
+data: {"type":"RUN_STARTED","threadId":"rec-thread-1","runId":"rec-run-2"}
+
+data: {"type":"STATE_SNAPSHOT","snapshot":{"thread":"rec-thread-1","session":"rec-session-1","agent":"coder","model":{"id":"claude-x","name":"Claude X","provider":"anthropic","contextWindow":200000},"todos":[],"tokenUsage":null,"files":[],"subAgents":[]}}
+
+data: {"type":"TEXT_MESSAGE_START","messageId":"rec-run-2-msg","role":"assistant"}
+
+data: {"type":"TEXT_MESSAGE_CONTENT","messageId":"rec-run-2-msg","delta":"It's 22°C and sunny in Madrid."}
+
+data: {"type":"TEXT_MESSAGE_END","messageId":"rec-run-2-msg"}
+
+data: {"type":"RUN_FINISHED","threadId":"rec-thread-1","runId":"rec-run-2","outcome":"success","result":"It's 22°C and sunny in Madrid."}
+

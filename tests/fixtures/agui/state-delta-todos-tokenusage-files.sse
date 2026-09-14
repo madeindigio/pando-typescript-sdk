@@ -1,0 +1,26 @@
+data: {"type":"RUN_STARTED","threadId":"rec-thread-2","runId":"rec-run-3"}
+
+data: {"type":"STATE_SNAPSHOT","snapshot":{"thread":"rec-thread-2","session":"rec-session-2","agent":"coder","model":{"id":"claude-x"},"todos":[],"tokenUsage":null,"files":[],"subAgents":[]}}
+
+data: {"type":"TEXT_MESSAGE_START","messageId":"rec-run-3-msg","role":"assistant"}
+
+data: {"type":"TEXT_MESSAGE_CONTENT","messageId":"rec-run-3-msg","delta":"On it."}
+
+data: {"type":"TOOL_CALL_START","toolCallId":"rec-call-view-1","toolCallName":"view","parentMessageId":"rec-run-3-msg"}
+
+data: {"type":"TOOL_CALL_ARGS","toolCallId":"rec-call-view-1","delta":"{\"file_path\":\"docs/DEPLOY.md\"}"}
+
+data: {"type":"TOOL_CALL_END","toolCallId":"rec-call-view-1"}
+
+data: {"type":"TOOL_CALL_RESULT","messageId":"rec-run-3-toolresult-1","toolCallId":"rec-call-view-1","content":"# Deploy\n\n...","role":"tool"}
+
+data: {"type":"STATE_DELTA","delta":[{"op":"replace","path":"/todos","value":[{"content":"Read the deployment guide","status":"in_progress","priority":"high"},{"content":"Summarize open questions","status":"pending","priority":"medium"}]}]}
+
+data: {"type":"STATE_DELTA","delta":[{"op":"replace","path":"/tokenUsage","value":{"promptTokens":842,"completionTokens":156,"contextWindow":200000,"estimated":false,"cacheReadTokens":512,"reasoningTokens":40,"cost":0.0123}}]}
+
+data: {"type":"STATE_DELTA","delta":[{"op":"add","path":"/files/-","value":{"path":"docs/DEPLOY.md","name":"DEPLOY.md","action":"read"}}]}
+
+data: {"type":"TEXT_MESSAGE_END","messageId":"rec-run-3-msg"}
+
+data: {"type":"RUN_FINISHED","threadId":"rec-thread-2","runId":"rec-run-3","outcome":"success","result":"On it."}
+

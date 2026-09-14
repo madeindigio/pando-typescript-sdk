@@ -243,6 +243,45 @@ approvals — is in [`examples/copilotkit/`](../../examples/copilotkit/).
 | `PandoState` | Type of the shared-state document (`useCoAgent<PandoState>()`) |
 | `parseSSE` | The event-stream parser, if you issue the request yourself |
 
+#### Recording AG-UI fixtures
+
+The agui test suite (`tests/agui*.test.ts`) mostly replays committed SSE fixtures —
+`tests/fixtures/agui/*.sse`, raw byte-for-byte response bodies, plus the hand-built
+event sequences in `tests/fixtures/agui-recorded-stream.ts` — so it runs offline, with
+no network and no live server. To regenerate the `.sse` fixtures from a real
+`pando agui-serve` instance instead of hand-editing them:
+
+```bash
+# Needs a `pando` binary (PANDO_BIN, defaults to `pando` on PATH — build one from
+# the `pando` monorepo with `go build -o /path/to/pando .`) and a configured LLM
+# provider for the target directory (PANDO_AGUI_RECORD_CWD, defaults to the
+# current directory) — driving a real agent run needs one.
+npm run record:agui-fixtures
+```
+
+`scripts/record-agui-fixtures.mjs` spawns `pando agui-serve --no-tls` on loopback,
+posts a couple of real prompts to it, and writes each run's raw SSE response body
+verbatim to `tests/fixtures/agui/<name>.sse` — no parsing, no reformatting, exactly
+the bytes the wire sent. It is **not** part of CI and is not invoked by `npm test`:
+it is a maintainer tool, run by hand when the fixtures need to be refreshed (e.g.
+`internal/agui`'s event shapes changed). Inspect the diff before committing — a real
+model's wording and tool choice vary run to run.
+
+Permission-prompt and `AskUserQuestion` round trips (approve/deny/malformed-answer/
+cancel) are instead covered by `tests/agui-integration.test.ts`, a live-server
+integration suite gated behind `PANDO_AGUI_INTEGRATION_BIN` (skipped whenever that
+binary path is not set — including in CI, which never sets it):
+
+```bash
+PANDO_AGUI_INTEGRATION_BIN=/path/to/pando npm test -- agui-integration
+```
+
+Separately, `scripts/check-agui-drift.mjs` (`npm run check:agui-drift`) parses
+`internal/agui/events.go` and `internal/agui/input.go` directly and diffs them
+against `src/agui/types.ts`, failing when a Go event constant or `RunAgentInput`/
+`Message` field has no TypeScript counterpart — see that script's module doc
+comment for how it locates the Go source.
+
 ## TypeScript types reference
 
 ### `AgentEvent`
@@ -322,7 +361,11 @@ The SDK resolves the `pando` binary in this order:
 
 ```bash
 npm install
-npm run build      # produces dist/index.js (ESM) and dist/index.cjs (CJS)
-npm test           # run Jest tests
-npm run typecheck  # TypeScript type checking only
+npm run build              # produces dist/index.js (ESM) and dist/index.cjs (CJS)
+npm test                   # run Jest tests (includes agui)
+npm run typecheck          # TypeScript type checking only
+npm run test:bun           # Bun-native test suite (tests/bun/, includes agui)
+npm run test:deno          # Deno-native test suite (tests/deno/, includes agui)
+npm run test:browser-build # Vite + React 18 fixture build for @pando-ai/sdk/agui/client
+npm run check:agui-drift   # diff internal/agui (Go) against src/agui/types.ts
 ```

@@ -31,6 +31,7 @@
 export {
   PandoAguiClient,
   PandoAguiError,
+  PandoAguiRunError,
   parseSSE,
   randomId,
   DEFAULT_AGUI_PATH,
@@ -38,6 +39,8 @@ export {
 } from "./client.js";
 export type {
   PandoAguiClientOptions,
+  AguiRunOptions,
+  /** @deprecated Use {@link AguiRunOptions}. */
   RunOptions,
   PandoPermissionRequest,
   PandoPermissionAnswer,

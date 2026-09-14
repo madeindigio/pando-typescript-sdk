@@ -52,6 +52,8 @@
     "test:browser-build": "node tests/browser-build/run.mjs",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.agui-browser.json",
     "typecheck:agui-browser": "tsc --noEmit -p tsconfig.agui-browser.json",
+    "check:agui-drift": "node scripts/check-agui-drift.mjs",
+    "record:agui-fixtures": "node scripts/record-agui-fixtures.mjs",
     "lint": "tsc --noEmit"
   },
   "peerDependencies": {
