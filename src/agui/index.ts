@@ -59,6 +59,33 @@ export type {
   PandoPermissionAnswer,
 } from "./client.js";
 
+export { PandoThread, applyJsonPatch } from "./thread.js";
+export type {
+  PandoThreadOptions,
+  PandoThreadRunOptions,
+  PandoCustomEvent,
+  PendingToolCall,
+} from "./thread.js";
+
+export {
+  QUESTION_TOOL_NAME,
+  isPermissionRequest,
+  isQuestionRequest,
+  approve,
+  deny,
+  answerQuestion,
+  cancelQuestion,
+} from "./hitl.js";
+export type {
+  PandoQuestion,
+  PandoQuestionOption,
+  PandoQuestionRequest,
+  PandoQuestionAnswer,
+  PandoQuestionAnswerEntry,
+  PandoPermissionPendingCall,
+  PandoQuestionPendingCall,
+} from "./hitl.js";
+
 export {
   createPandoAgent,
   discoverPandoAgents,
