@@ -79,6 +79,14 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      # internal/api/ui_assets_app.go and internal/desktop/embed_binary.go embed
+      # build artifacts that are gitignored, so a fresh checkout of the monorepo
+      # cannot be compiled until their embed patterns resolve. The monorepo's
+      # own Makefile has a target for exactly this, and it never overwrites a
+      # real asset.
+      - name: Create the monorepo's embed stubs
+        working-directory: pando-monorepo
+        run: make embed-stubs
       # The suite builds its own pando binary with -tags agui_fixture_agent and
       # drives a real agui-serve through it, with no LLM credentials. It skips
       # itself when it cannot find a pando module to build from, so this job
