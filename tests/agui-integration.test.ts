@@ -67,15 +67,37 @@ function goAvailable(): boolean {
   }
 }
 
-const CAN_RUN = Boolean(FIXTURE_BIN_OVERRIDE) || goAvailable();
+/**
+ * Reports whether REPO_ROOT really is the pando Go module.
+ *
+ * A `go` toolchain on its own is not enough, and assuming it was is what broke
+ * CI on the first push of this suite: a GitHub runner has Go preinstalled, but
+ * this repository is checked out on its own, so REPO_ROOT's default (three
+ * directories up, where the monorepo sits during local development) does not
+ * exist there. The suite then tried to build and failed instead of skipping.
+ */
+function pandoModuleAvailable(): boolean {
+  try {
+    const goMod = join(REPO_ROOT, "go.mod");
+    if (!existsSync(goMod)) return false;
+    return readFileSync(goMod, "utf8").includes("module github.com/digiogithub/pando");
+  } catch {
+    return false;
+  }
+}
+
+const CAN_RUN = Boolean(FIXTURE_BIN_OVERRIDE) || (goAvailable() && pandoModuleAvailable());
 const describeIntegration = CAN_RUN ? describe : describe.skip;
 
 if (!CAN_RUN) {
   // eslint-disable-next-line no-console
   console.warn(
-    "agui-integration.test.ts: skipped -- no `go` toolchain found and " +
-      "PANDO_AGUI_FIXTURE_BIN was not set, so the fixture-tagged pando " +
-      "binary this suite needs cannot be built or located.",
+    `agui-integration.test.ts: skipped -- PANDO_AGUI_FIXTURE_BIN was not set and ` +
+      `no pando Go module was found to build from (looked for a go.mod declaring ` +
+      `github.com/digiogithub/pando at ${REPO_ROOT}, go toolchain ` +
+      `${goAvailable() ? "present" : "missing"}). Set PANDO_REPO_ROOT to a pando ` +
+      `checkout, or PANDO_AGUI_FIXTURE_BIN to a binary built with ` +
+      `-tags agui_fixture_agent, to run this suite.`,
   );
 }
 

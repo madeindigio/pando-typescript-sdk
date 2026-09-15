@@ -37,12 +37,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: digiogithub/pando
-          # A PAT with read access to digiogithub/pando is required here when
-          # that repository is private — the default GITHUB_TOKEN this
-          # workflow runs with only has access to the repo it belongs to
-          # (this SDK's own repository), not a sibling one. Add a
+          # digiogithub/pando is public, so the default GITHUB_TOKEN can check
+          # it out and no secret is needed. Should it ever be made private,
+          # this needs a PAT with read access to it — the default token only
+          # reaches the repository the workflow belongs to. Add a
           # PANDO_MONOREPO_TOKEN repository secret and uncomment the line
-          # below if the checkout starts failing with "Repository not found".
+          # below if this starts failing with "Repository not found".
           # token: ${{ secrets.PANDO_MONOREPO_TOKEN }}
           sparse-checkout: |
             internal/agui
@@ -56,3 +56,36 @@ jobs:
         env:
           PANDO_AGUI_GO_DIR: ${{ github.workspace }}/pando-go-source/internal/agui
         run: npm run check:agui-drift
+
+  agui-integration:
+    name: HITL round trip against a real agui-serve (PANDO-T-0002)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout SDK
+        uses: actions/checkout@v4
+      - name: Checkout the pando monorepo
+        uses: actions/checkout@v4
+        with:
+          repository: digiogithub/pando
+          # Public, so the default GITHUB_TOKEN suffices. See the note in the
+          # agui-drift job if that ever changes.
+          path: pando-monorepo
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: pando-monorepo/go.mod
+          cache-dependency-path: pando-monorepo/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # The suite builds its own pando binary with -tags agui_fixture_agent and
+      # drives a real agui-serve through it, with no LLM credentials. It skips
+      # itself when it cannot find a pando module to build from, so this job
+      # exists to make sure it does not skip: PANDO_REPO_ROOT points it at the
+      # checkout above. A skip here would be silent coverage loss, which is
+      # exactly what PANDO-US-0008 and US-0010 sat in review over.
+      - name: Run the HITL round trip
+        env:
+          PANDO_REPO_ROOT: ${{ github.workspace }}/pando-monorepo
+        run: npm test -- tests/agui-integration.test.ts
